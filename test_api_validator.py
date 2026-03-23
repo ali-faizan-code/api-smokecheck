@@ -1,5 +1,7 @@
 import pytest
-from api_validator import summarize_posts, validate_schema, get_validation_results
+import requests
+from unittest.mock import patch, Mock
+from api_validator import fetch_posts, summarize_posts, validate_schema, get_validation_results
 
 
 @pytest.mark.parametrize(
@@ -179,3 +181,60 @@ def test_get_validation_results_detects_empty_titles(posts, expected) -> None:
 
     assert empty_titles_check is not None
     assert empty_titles_check["passed"] is expected
+
+@patch("api_validator.requests.get")
+def test_fetch_posts_success(mock_get) -> None:
+    mock_response = Mock()
+    mock_response.json.return_value = [
+        {"userId": 1, "id": 1, "title": "hello", "body": "body"}
+    ]
+    mock_response.raise_for_status.return_value = None
+    mock_get.return_value = mock_response
+
+    posts, response_time = fetch_posts()
+
+    assert isinstance(posts, list)
+    assert len(posts) == 1
+    assert posts[0]["title"] == "hello"
+    assert response_time >= 0
+
+@patch("api_validator.requests.get")
+def test_fetch_posts_timeout(mock_get) -> None:
+    mock_get.side_effect = requests.exceptions.Timeout
+
+    posts, response_time = fetch_posts()
+
+    assert posts == []
+    assert response_time == 0.0
+
+@patch("api_validator.requests.get")
+def test_fetch_posts_request_exception(mock_get) -> None:
+    mock_get.side_effect = requests.exceptions.RequestException("boom")
+
+    posts, response_time = fetch_posts()
+
+    assert posts == []
+    assert response_time == 0.0
+
+@patch("api_validator.requests.get")
+def test_fetch_posts_rejects_non_list_json(mock_get) -> None:
+    mock_response = Mock()
+    mock_response.json.return_value = {"message": "not a list"}
+    mock_response.raise_for_status.return_value = None
+    mock_get.return_value = mock_response
+
+    posts, response_time = fetch_posts()
+
+    assert posts == []
+    assert response_time == 0.0
+
+@patch("api_validator.requests.get")
+def test_fetch_posts_http_error(mock_get) -> None:
+    mock_response = Mock()
+    mock_response.raise_for_status.side_effect = requests.exceptions.HTTPError("404 error")
+    mock_get.return_value = mock_response
+
+    posts, response_time = fetch_posts()
+
+    assert posts == []
+    assert response_time == 0.0
