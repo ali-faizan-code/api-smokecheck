@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import requests
 import os
-import sys
 import json
 import time
+import argparse
 
 
 EXPECTED_MIN_POSTS = 50
@@ -136,6 +136,7 @@ def get_validation_results(summary: dict) -> list[dict]:
 
     return results
 
+
 def print_validation_results(results: list[dict]) -> None:
     print("\n=== VALIDATION RESULTS ===")
     
@@ -152,6 +153,7 @@ def print_validation_results(results: list[dict]) -> None:
     print(f"Total checks: {total}")
     print(f"Passed: {passed}")
     print(f"Failed: {failed}")
+
 
 def save_report(
     results: list[dict], 
@@ -184,7 +186,8 @@ def save_report(
     
     print(f"\nReport saved to {filename}")
 
-def print_summary(summary: dict) -> None:
+
+def print_summary(summary: dict, sample_size: int) -> None:
     print("=== API Summary ===")
     print(f"Total posts: {summary['count']}")
     print(f"Unique user IDs: {summary['unique_user_ids']}")
@@ -193,7 +196,7 @@ def print_summary(summary: dict) -> None:
     print("Titles (sample):")
     print_count = 0
     for title in summary['all_titles']:
-        if print_count < SAMPLE_SIZE:
+        if print_count < sample_size:
             print(f"- {title}")
             print_count += 1
         else:
@@ -203,24 +206,40 @@ def print_summary(summary: dict) -> None:
             break
 
 
+def positive_int(value: str) -> int:
+    parsed = int(value)
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("sample size must be a positive integer")
+    return parsed
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments for the API smoke-check tool."""
+    parser = argparse.ArgumentParser(
+        description="Run API smoke checks against the configured posts endpoint."
+    )
+
+    parser.add_argument(
+        "--sample",
+        type=positive_int,
+        default=SAMPLE_SIZE,
+        help="Number of titles to print in the sample output.",
+    )
+
+    parser.add_argument(
+        "--report",
+        default=DEFAULT_REPORT_FILENAME,
+        help="Output JSON report filename (default: report.json).",
+    )
+
+    return parser.parse_args(argv)
+
+
 def main() -> None:
-    global SAMPLE_SIZE
-    report_filename = DEFAULT_REPORT_FILENAME
+    args = parse_args()
 
-    if "--sample" in sys.argv:
-        try:
-            sample_index = sys.argv.index("--sample")
-            SAMPLE_SIZE = int(sys.argv[sample_index + 1])
-        except (IndexError, ValueError):
-            print("Invalid sample size. Using default.")
-
-
-    if "--report" in sys.argv:
-        try:
-            report_index = sys.argv.index("--report")
-            report_filename = sys.argv[report_index + 1]
-        except IndexError:
-            print("Invalid report filename. Using default.")
+    sample_size = args.sample
+    report_filename = args.report
 
     print(f"Current api url: {API_URL}")
 
@@ -238,7 +257,7 @@ def main() -> None:
 
     summary = summarize_posts(posts)
 
-    print_summary(summary)
+    print_summary(summary, sample_size)
     
     results = get_validation_results(summary)
     

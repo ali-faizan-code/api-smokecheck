@@ -1,7 +1,8 @@
 import pytest
 import requests
+import argparse
 from unittest.mock import patch, Mock
-from api_validator import fetch_posts, summarize_posts, validate_schema, get_validation_results
+from api_validator import fetch_posts, summarize_posts, validate_schema, get_validation_results, parse_args
 
 
 @pytest.mark.parametrize(
@@ -238,3 +239,23 @@ def test_fetch_posts_http_error(mock_get) -> None:
 
     assert posts == []
     assert response_time == 0.0
+
+def test_parse_args_defaults() -> None:
+    args = parse_args([])
+
+    assert args.sample == 3
+    assert args.report == "report.json"
+
+def test_parse_args_custom_values() -> None:
+    args = parse_args(["--sample", "5", "--report", "nightly.json"])
+
+    assert args.sample == 5
+    assert args.report == "nightly.json"
+
+def test_parse_args_rejects_invalid_sample() -> None:
+    with pytest.raises(SystemExit):
+        parse_args(["--sample", "abc"])
+
+def test_parse_args_rejects_non_positive_sample() -> None:
+    with pytest.raises(SystemExit):
+        parse_args(["--sample", "0"])
