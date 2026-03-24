@@ -14,11 +14,11 @@ API_URL = os.getenv("API_URL", "https://jsonplaceholder.typicode.com/posts")
 DEFAULT_REPORT_FILENAME = "report.json"
 
 
-def fetch_posts() -> tuple[list[dict], float]:
+def fetch_posts(api_url: str = API_URL) -> tuple[list[dict], float]:
     """Fetch posts from a public demo API and return posts plus response time."""
     try:
         start_time = time.perf_counter()
-        response = requests.get(API_URL, timeout=10)
+        response = requests.get(api_url, timeout=10)
         end_time = time.perf_counter()
         response_time = end_time - start_time
         response.raise_for_status()  # raises an error for 4xx/5xx
@@ -42,10 +42,8 @@ def fetch_posts() -> tuple[list[dict], float]:
 
 def summarize_posts(posts: list[dict]) -> dict:
     """
-    Return a summary dict:
-    - count
-    - unique_user_ids
-    - titles_longer_than_50
+    Return a summary dictionary for the posts data, including counts,
+    user IDs, title analysis, and post IDs.
     """
     count = len(posts)
 
@@ -93,9 +91,13 @@ def summarize_posts(posts: list[dict]) -> dict:
 
 def validate_schema(posts: list[dict]) -> bool:
     for post in posts:
-        if not isinstance(post, dict) or "userId" not in post or "title" not in post:
+        if (
+            not isinstance(post, dict)
+            or "userId" not in post
+            or "id" not in post
+            or "title" not in post
+        ):
             return False
-    
     return True
 
 
@@ -160,13 +162,14 @@ def save_report(
     summary: dict, 
     response_time: float,
     filename: str = DEFAULT_REPORT_FILENAME,
+    api_url: str = API_URL,
 ) -> None:
     total = len(results)
     passed = sum(result["passed"] for result in results)
     failed = total - passed
 
     report_data = {
-        "api_url": API_URL,
+        "api_url": api_url,
         "response_time_seconds": round(response_time, 4), 
         "total_checks": total,
         "passed": passed,
@@ -194,16 +197,14 @@ def print_summary(summary: dict, sample_size: int) -> None:
     print(f"Titles > 50 chars: {summary['titles_longer_than_50']}")
     print(f"Total number of Titles: {len(summary['all_titles'])}")
     print("Titles (sample):")
-    print_count = 0
-    for title in summary['all_titles']:
-        if print_count < sample_size:
-            print(f"- {title}")
-            print_count += 1
-        else:
-            remaining = len(summary['all_titles']) - print_count
-            if remaining > 0:
-                print(f"(and {remaining} more...)")
-            break
+
+    sample_titles = summary["all_titles"][:sample_size]
+    for title in sample_titles:
+        print(f"- {title}")
+
+    remaining = len(summary["all_titles"]) - len(sample_titles)
+    if remaining > 0:
+        print(f"(and {remaining} more...)")
 
 
 def positive_int(value: str) -> int:
